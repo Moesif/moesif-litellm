@@ -142,3 +142,9 @@ class TestVirtualKeyTeamMapping:
             }
         }
         assert resolve_company_id({}, payload, config) == "startup-xyz"
+
+    def test_company_id_from_litellm_params_metadata(self, config):
+        # SDK mode: litellm.completion(metadata={"company_id": "..."})
+        # LiteLLM stores metadata in kwargs["litellm_params"]["metadata"], not kwargs["metadata"]
+        kwargs = {"litellm_params": {"metadata": {"company_id": "sdk-company"}}}
+        assert resolve_company_id(kwargs, {"metadata": {}}, config) == "sdk-company"

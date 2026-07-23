@@ -74,12 +74,17 @@ def resolve_company_id(kwargs: dict, payload: dict, config: MoesifConfig) -> Opt
     if val:
         return str(val)
 
-    # 4. company_id from raw kwargs metadata (most direct proxy path)
+    # 4. company_id from raw kwargs metadata (proxy path)
     val = (kwargs.get("metadata") or {}).get("company_id")
     if val:
         return str(val)
 
-    # 5. JWT claim
+    # 5. company_id from litellm_params metadata (SDK path — litellm.completion(metadata=...))
+    val = (kwargs.get("litellm_params") or {}).get("metadata", {}).get("company_id")
+    if val:
+        return str(val)
+
+    # 6. JWT claim
     if config.authorization_company_id_field:
         auth = _extract_auth_header(kwargs, payload)
         if auth:
