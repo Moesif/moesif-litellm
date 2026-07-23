@@ -80,9 +80,7 @@ class MoesifLogger(CustomBatchLogger):
             verbose_logger.exception("Moesif: error building success event (sync)")
             return
         if event is not None:
-            self.log_queue.append(event)
-            if len(self.log_queue) >= self.batch_size:
-                asyncio.run(self._send_batch_now())
+            self._sync_send([event])
 
     def log_failure_event(self, kwargs, response_obj, start_time, end_time):
         try:
@@ -94,9 +92,7 @@ class MoesifLogger(CustomBatchLogger):
             verbose_logger.exception("Moesif: error building failure event (sync)")
             return
         if event is not None:
-            self.log_queue.append(event)
-            if len(self.log_queue) >= self.batch_size:
-                asyncio.run(self._send_batch_now())
+            self._sync_send([event])
 
     async def async_send_batch(self):
         if not self.log_queue:
@@ -134,9 +130,31 @@ class MoesifLogger(CustomBatchLogger):
         return self._http_client
 
     async def _send_batch_now(self):
-        """One-shot send used by sync stubs."""
         async with self.flush_lock:
             await self.async_send_batch()
+
+    def _sync_send(self, batch: list):
+        """Send a batch synchronously — used by sync litellm.completion() calls."""
+        try:
+            with httpx.Client(
+                timeout=httpx.Timeout(connect=5.0, read=10.0, write=10.0, pool=5.0),
+                headers={
+                    "X-Moesif-Application-Id": self.moesif_config.application_id,
+                    "Content-Type": "application/json",
+                    "User-Agent": f"moesif-litellm/{__version__}",
+                },
+            ) as client:
+                response = client.post(
+                    f"{self.moesif_config.moesif_base_url}/v1/events/batch",
+                    json=batch,
+                )
+                if response.status_code != 201:
+                    verbose_logger.warning(
+                        "Moesif: unexpected HTTP %s sending %d events (sync)",
+                        response.status_code, len(batch),
+                    )
+        except Exception:
+            verbose_logger.exception("Moesif: error sending events (sync)")
 
     def _ensure_flush_task(self):
         if self._flush_task is None or self._flush_task.done():
