@@ -278,6 +278,16 @@ Events that pass sampling get a `weight` of `100 / sample_rate` so Moesif can ex
 
 `MoesifLogger` extends LiteLLM's `CustomBatchLogger`. On each request it builds a Moesif event from `StandardLoggingPayload` and appends it to an in-memory queue. A background `asyncio` task flushes the queue to `POST /v1/events/batch` every `flush_interval` seconds, or immediately when `batch_size` is reached. The proxied request is never blocked. Failed batches are re-queued automatically.
 
+### Sync vs async flush behaviour
+
+| Mode | How triggered | Flush timing |
+|---|---|---|
+| Sync (`litellm.completion`) | `log_success_event` | Immediately per event via blocking `httpx` |
+| Async (`litellm.acompletion` / proxy) | `async_log_success_event` | Every `flush_interval` seconds or when `batch_size` reached |
+
+In sync mode every event is sent to Moesif immediately after the LLM call returns. In async mode events are batched and flushed on a background timer — no blocking of the calling coroutine.
+
+
 ---
 
 ## Running tests
