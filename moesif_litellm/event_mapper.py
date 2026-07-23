@@ -139,7 +139,9 @@ def build_moesif_event(
 
     if config.mask_event_model:
         try:
-            event = config.mask_event_model(kwargs, event)
+            masked = config.mask_event_model(kwargs, event)
+            if masked is not None:
+                event = masked
         except Exception:
             pass
 
@@ -181,7 +183,8 @@ def _build_request_headers(payload: dict, config: MoesifConfig) -> dict:
 def _build_response_body(payload: dict, config: MoesifConfig, *, is_error: bool):
     if is_error:
         # Always capture error details regardless of capture_response_body flag
-        return {"error": payload.get("error_str")}
+        body = {"error": payload.get("error_str")}
+        return mask_body(body, config.response_body_masks)
     if not config.capture_response_body:
         return None
     resp = payload.get("response") or {}

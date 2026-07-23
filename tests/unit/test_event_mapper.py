@@ -180,3 +180,28 @@ class TestHooks:
         config.mask_event_model = bad_mask
         event = _build(base_kwargs, config)
         assert event is not None
+
+    def test_mask_event_model_returning_none_keeps_original(self, base_kwargs, config):
+        config.mask_event_model = lambda k, e: None
+        event = _build(base_kwargs, config)
+        assert event is not None
+        assert event["direction"] == "Outgoing"
+
+
+class TestErrorBodyMasking:
+    def test_response_body_masks_applied_to_error_body(self, base_kwargs, config):
+        config.response_body_masks = ["error"]
+        base_kwargs["standard_logging_object"]["error_str"] = "sensitive error message"
+        event = _build(base_kwargs, config, is_error=True)
+        assert event["response"]["body"]["error"] is None
+
+    def test_error_body_captured_without_masks(self, base_kwargs, config):
+        base_kwargs["standard_logging_object"]["error_str"] = "rate limit exceeded"
+        event = _build(base_kwargs, config, is_error=True)
+        assert event["response"]["body"]["error"] == "rate limit exceeded"
+
+    def test_error_body_captured_even_when_capture_response_body_false(self, base_kwargs, config):
+        config.capture_response_body = False
+        base_kwargs["standard_logging_object"]["error_str"] = "some error"
+        event = _build(base_kwargs, config, is_error=True)
+        assert event["response"]["body"]["error"] == "some error"
