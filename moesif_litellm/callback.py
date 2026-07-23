@@ -40,8 +40,6 @@ class MoesifLogger(CustomBatchLogger):
             max_queue_size=self.moesif_config.max_queue_size,
         )
 
-    # ── LiteLLM async hooks ───────────────────────────────────────────────────
-
     async def async_log_success_event(self, kwargs, response_obj, start_time, end_time):
         self._ensure_flush_task()
         try:
@@ -72,8 +70,6 @@ class MoesifLogger(CustomBatchLogger):
             if len(self.log_queue) >= self.batch_size:
                 await self.flush_queue()
 
-    # ── Sync stubs (SDK mode without async event loop) ────────────────────────
-
     def log_success_event(self, kwargs, response_obj, start_time, end_time):
         try:
             event = build_moesif_event(
@@ -102,8 +98,6 @@ class MoesifLogger(CustomBatchLogger):
             if len(self.log_queue) >= self.batch_size:
                 asyncio.run(self._send_batch_now())
 
-    # ── Batch sender ──────────────────────────────────────────────────────────
-
     async def async_send_batch(self):
         if not self.log_queue:
             return
@@ -126,8 +120,6 @@ class MoesifLogger(CustomBatchLogger):
         except Exception:
             self.log_queue = batch + self.log_queue
             raise
-
-    # ── Internals ─────────────────────────────────────────────────────────────
 
     async def _get_http_client(self) -> httpx.AsyncClient:
         if self._http_client is None or self._http_client.is_closed:

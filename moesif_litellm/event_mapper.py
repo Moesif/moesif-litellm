@@ -1,4 +1,4 @@
-import logging
+import datetime
 import random
 from typing import Optional
 
@@ -159,9 +159,11 @@ def _build_request_body(payload: dict, config: MoesifConfig):
     if not config.capture_request_body:
         return None
     body = {
-        "model": payload.get("model"),
-        "messages": payload.get("messages"),
-        **(payload.get("model_parameters") or {}),
+        k: v for k, v in {
+            "model": payload.get("model"),
+            "messages": payload.get("messages"),
+            **(payload.get("model_parameters") or {}),
+        }.items() if v is not None
     }
     body = mask_body(body, config.request_body_masks)
     return truncate_body(body, config.request_max_body_size)
@@ -178,6 +180,7 @@ def _build_request_headers(payload: dict, config: MoesifConfig) -> dict:
 
 def _build_response_body(payload: dict, config: MoesifConfig, *, is_error: bool):
     if is_error:
+        # Always capture error details regardless of capture_response_body flag
         return {"error": payload.get("error_str")}
     if not config.capture_response_body:
         return None
@@ -194,7 +197,7 @@ def _resolve_http_status(payload: dict, *, is_error: bool) -> int:
     return map_error_to_http_status(error_class)
 
 
-def _extract_session_token(kwargs: dict, payload: dict):
+def _extract_session_token(kwargs: dict, payload: dict) -> Optional[str]:
     custom = (payload.get("metadata") or {}).get("requester_custom_headers") or {}
     auth = custom.get("authorization") or custom.get("Authorization") or ""
     if auth.lower().startswith("bearer "):
@@ -208,10 +211,6 @@ def _to_float(ts) -> float:
         return ts
     if isinstance(ts, int):
         return float(ts)
-    try:
-        import datetime as dt
-        if isinstance(ts, dt.datetime):
-            return ts.timestamp()
-    except Exception:
-        pass
+    if isinstance(ts, datetime.datetime):
+        return ts.timestamp()
     return float(ts)
