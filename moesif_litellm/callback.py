@@ -7,6 +7,7 @@ from litellm.integrations.custom_batch_logger import CustomBatchLogger
 
 from moesif_litellm.config import MoesifConfig
 from moesif_litellm.event_mapper import build_moesif_event
+from moesif_litellm.governance import GovernanceRulesManager
 
 try:
     from moesif_litellm import __version__
@@ -21,13 +22,17 @@ class MoesifLogger(CustomBatchLogger):
         self._http_client: Optional[httpx.AsyncClient] = None
         self._flush_task: Optional[asyncio.Task] = None
 
-        # Schedule flush task, then create lock,
-        # then call super(). The task won't actually run until the next event
-        # loop iteration, by which point flush_lock is already set.
+        self.governance = GovernanceRulesManager(
+            application_id=self.moesif_config.application_id,
+            base_url=self.moesif_config.moesif_base_url,
+            user_agent=f"moesif-litellm/{__version__}",
+        )
+
         try:
             self._flush_task = asyncio.create_task(self.periodic_flush())
+            self.governance.start()
         except RuntimeError:
-            # No running event loop (e.g., created at module level in tests).
+            # No running event loop (e.g., created at module level in sync scripts).
             # _ensure_flush_task() will retry on first async event.
             pass
 
@@ -162,3 +167,4 @@ class MoesifLogger(CustomBatchLogger):
                 self._flush_task = asyncio.create_task(self.periodic_flush())
             except RuntimeError:
                 pass
+        self.governance.start()
