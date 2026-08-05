@@ -7,12 +7,40 @@ from litellm.integrations.custom_batch_logger import CustomBatchLogger
 
 from moesif_litellm.config import MoesifConfig
 from moesif_litellm.event_mapper import build_moesif_event
-from moesif_litellm.governance import GovernanceRulesManager
+from moesif_litellm.governance import GovernanceBlockedException, GovernanceRulesManager
+from moesif_litellm.user_resolver import resolve_company_id, resolve_user_id
 
 try:
     from moesif_litellm import __version__
 except ImportError:
     __version__ = "0.1.0"
+
+
+def _make_block_exception(exc: "GovernanceBlockedException") -> Exception:
+    import litellm
+    message = str(exc)
+    status = exc.status
+
+    mock_request = httpx.Request(method="POST", url="https://api.moesif.net")
+    mock_response = httpx.Response(status_code=status, request=mock_request)
+
+    if status == 401:
+        return litellm.AuthenticationError(message=message, llm_provider="moesif", model="", response=mock_response)
+    if status == 403:
+        return litellm.PermissionDeniedError(message=message, llm_provider="moesif", model="", response=mock_response)
+    if status == 404:
+        return litellm.NotFoundError(message=message, llm_provider="moesif", model="", response=mock_response)
+    if status == 408:
+        return litellm.Timeout(message=message, llm_provider="moesif", model="")
+    if status == 422:
+        return litellm.UnprocessableEntityError(message=message, llm_provider="moesif", model="", response=mock_response)
+    if status == 429:
+        return litellm.RateLimitError(message=message, llm_provider="moesif", model="", response=mock_response)
+    if status == 500:
+        return litellm.InternalServerError(message=message, llm_provider="moesif", model="", response=mock_response)
+    if status == 503:
+        return litellm.ServiceUnavailableError(message=message, llm_provider="moesif", model="", response=mock_response)
+    return litellm.BadRequestError(message=message, llm_provider="moesif", model="", response=mock_response)
 
 
 class MoesifLogger(CustomBatchLogger):
@@ -44,6 +72,34 @@ class MoesifLogger(CustomBatchLogger):
             flush_interval=self.moesif_config.flush_interval,
             max_queue_size=self.moesif_config.max_queue_size,
         )
+
+    async def async_pre_call_hook(self, user_api_key_dict, cache, data, call_type):
+        self._ensure_flush_task()
+        if not self.governance._fetched_once:
+            await self.governance.fetch_once()
+        if not self.governance.rules:
+            return data
+
+        payload = data.get("standard_logging_object") or {}
+        user_id = resolve_user_id(data, payload, self.moesif_config)
+        company_id = resolve_company_id(data, payload, self.moesif_config)
+        model = data.get("model", "")
+
+        exc = self.governance.check_request_blocked(
+            user_id=user_id,
+            company_id=company_id,
+            request_verb="POST",
+            request_route=f"/v1/chat/completions/{model}",
+        )
+        if exc:
+            verbose_logger.warning(
+                "Moesif governance: blocking request for user=%s company=%s rule=%s",
+                user_id, company_id, exc.rule_id,
+            )
+            await self._send_blocked_event(data, exc, user_id, company_id)
+            raise _make_block_exception(exc)
+
+        return data
 
     async def async_log_success_event(self, kwargs, response_obj, start_time, end_time):
         self._ensure_flush_task()
@@ -160,6 +216,39 @@ class MoesifLogger(CustomBatchLogger):
                     )
         except Exception:
             verbose_logger.exception("Moesif: error sending events (sync)")
+
+    async def _send_blocked_event(self, data: dict, exc: "GovernanceBlockedException", user_id, company_id):
+        import datetime
+        now = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")
+        model = data.get("model", "")
+        event = {
+            "request": {
+                "time": now,
+                "verb": "POST",
+                "uri": f"{self.moesif_config.moesif_base_url}/v1/chat/completions",
+                "headers": {"content-type": "application/json"},
+                "body": {"model": model, "messages": data.get("messages", [])} if self.moesif_config.capture_request_body else None,
+            },
+            "response": {
+                "time": now,
+                "status": exc.status,
+                "headers": exc.headers or {},
+                "body": exc.body if self.moesif_config.capture_response_body else None,
+            },
+            "user_id": user_id,
+            "company_id": company_id,
+            "direction": "Outgoing",
+            "weight": 1,
+            "blocked_by": exc.rule_id,
+            "metadata": {
+                "litellm": {"model": model},
+            },
+        }
+        try:
+            client = await self._get_http_client()
+            await client.post(f"{self.moesif_config.moesif_base_url}/v1/events/batch", json=[event])
+        except Exception:
+            verbose_logger.exception("Moesif: error sending blocked event")
 
     def _ensure_flush_task(self):
         if self._flush_task is None or self._flush_task.done():

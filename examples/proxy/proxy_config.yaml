@@ -1,4 +1,4 @@
-okmodel_list:
+model_list:
   - model_name: gemini-flash
     litellm_params:
       model: gemini/gemini-3.6-flash
