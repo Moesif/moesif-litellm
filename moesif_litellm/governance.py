@@ -35,6 +35,8 @@ class GovernanceRulesManager:
         # /v1/config — maps user_id/company_id → [{rules: rule_id, values: {...}}]
         self._user_entity_rules: dict = {}
         self._company_entity_rules: dict = {}
+        self._user_sample_rates: dict = {}
+        self._company_sample_rates: dict = {}
         self._config_etag: Optional[str] = None
 
         self._refresh_task: Optional[asyncio.Task] = None
@@ -57,6 +59,20 @@ class GovernanceRulesManager:
         if not self._fetched_once:
             await asyncio.gather(self._fetch_rules(), self._fetch_config())
             self._fetched_once = True
+
+    def get_effective_sample_rate(
+        self,
+        user_id: Optional[str],
+        company_id: Optional[str],
+        global_rate: int,
+    ) -> int:
+        """Return the minimum of global, user-level, and company-level sample rates."""
+        rate = global_rate
+        if user_id and user_id in self._user_sample_rates:
+            rate = min(rate, self._user_sample_rates[user_id])
+        if company_id and company_id in self._company_sample_rates:
+            rate = min(rate, self._company_sample_rates[company_id])
+        return rate
 
     def check_request_blocked(
         self,
@@ -262,6 +278,8 @@ class GovernanceRulesManager:
             data = response.json()
             self._user_entity_rules = data.get("user_rules") or {}
             self._company_entity_rules = data.get("company_rules") or {}
+            self._user_sample_rates = data.get("user_sample_rate") or {}
+            self._company_sample_rates = data.get("company_sample_rate") or {}
             self._config_etag = response.headers.get("x-moesif-config-etag") or response.headers.get("etag")
             verbose_logger.debug(
                 "Moesif governance: config loaded (%d user entries, %d company entries)",

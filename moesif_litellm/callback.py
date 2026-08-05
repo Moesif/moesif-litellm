@@ -104,9 +104,15 @@ class MoesifLogger(CustomBatchLogger):
     async def async_log_success_event(self, kwargs, response_obj, start_time, end_time):
         self._ensure_flush_task()
         try:
+            payload = kwargs.get("standard_logging_object") or {}
+            user_id = resolve_user_id(kwargs, payload, self.moesif_config)
+            company_id = resolve_company_id(kwargs, payload, self.moesif_config)
+            sample_rate = self.governance.get_effective_sample_rate(
+                user_id, company_id, self.moesif_config.sample_rate
+            )
             event = build_moesif_event(
                 kwargs, response_obj, start_time, end_time,
-                self.moesif_config, is_error=False,
+                self.moesif_config, is_error=False, effective_sample_rate=sample_rate,
             )
         except Exception:
             verbose_logger.exception("Moesif: error building success event")
@@ -119,9 +125,15 @@ class MoesifLogger(CustomBatchLogger):
     async def async_log_failure_event(self, kwargs, response_obj, start_time, end_time):
         self._ensure_flush_task()
         try:
+            payload = kwargs.get("standard_logging_object") or {}
+            user_id = resolve_user_id(kwargs, payload, self.moesif_config)
+            company_id = resolve_company_id(kwargs, payload, self.moesif_config)
+            sample_rate = self.governance.get_effective_sample_rate(
+                user_id, company_id, self.moesif_config.sample_rate
+            )
             event = build_moesif_event(
                 kwargs, response_obj, start_time, end_time,
-                self.moesif_config, is_error=True,
+                self.moesif_config, is_error=True, effective_sample_rate=sample_rate,
             )
         except Exception:
             verbose_logger.exception("Moesif: error building failure event")

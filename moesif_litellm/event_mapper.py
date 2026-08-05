@@ -35,6 +35,7 @@ def build_moesif_event(
     config: MoesifConfig,
     *,
     is_error: bool = False,
+    effective_sample_rate: Optional[int] = None,
 ) -> Optional[dict]:
     """
     Map a LiteLLM callback invocation to a Moesif event dict.
@@ -43,10 +44,11 @@ def build_moesif_event(
     payload: dict = kwargs.get("standard_logging_object") or {}
 
     # ── Sampling ──────────────────────────────────────────────────────────────
-    if config.sample_rate < 100:
-        if random.randint(0, 99) >= config.sample_rate:
+    sample_rate = effective_sample_rate if effective_sample_rate is not None else config.sample_rate
+    if sample_rate < 100:
+        if random.randint(0, 99) >= sample_rate:
             return None
-        weight = max(1, round(100 / config.sample_rate))
+        weight = max(1, round(100 / sample_rate))
     else:
         weight = 1
 
