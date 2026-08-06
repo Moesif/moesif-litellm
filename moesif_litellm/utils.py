@@ -23,10 +23,7 @@ def format_iso8601(ts: float) -> str:
 
 
 def decode_bearer_jwt(header_value: str) -> Dict:
-    """
-    Decode JWT payload from a Bearer token.
-    Returns {} on any parse failure — callers must tolerate an empty dict.
-    """
+    """Decode JWT payload from a Bearer token. Returns {} on any parse failure."""
     try:
         token = header_value.strip()
         if token.lower().startswith("bearer "):

@@ -60,8 +60,7 @@ class MoesifHandler(CustomBatchLogger):
             self._flush_task = asyncio.create_task(self.periodic_flush())
             self.governance.start()
         except RuntimeError:
-            # No running event loop (created at module level in sync scripts).
-            # _ensure_flush_task() retries on the first async event.
+            # no event loop yet, _ensure_flush_task() retries on first async call
             pass
 
         self.flush_lock = asyncio.Lock()
@@ -127,8 +126,7 @@ class MoesifHandler(CustomBatchLogger):
         return data
 
     async def async_log_stream_event(self, kwargs, response_obj, start_time, end_time):
-        # Intermediate chunks are skipped; async_log_success_event receives the
-        # fully assembled response once streaming completes.
+        # chunks skipped; async_log_success_event receives the fully assembled response
         pass
 
     async def async_log_success_event(self, kwargs, response_obj, start_time, end_time):
