@@ -73,6 +73,31 @@ class MoesifLogger(CustomBatchLogger):
             max_queue_size=self.moesif_config.max_queue_size,
         )
 
+    def pre_call_hook(self, user_api_key_dict, cache, data, call_type):
+        if not self.governance.rules:
+            return data
+
+        payload = data.get("standard_logging_object") or {}
+        user_id = resolve_user_id(data, payload, self.moesif_config)
+        company_id = resolve_company_id(data, payload, self.moesif_config)
+        model = data.get("model", "")
+
+        exc = self.governance.check_request_blocked(
+            user_id=user_id,
+            company_id=company_id,
+            request_verb="POST",
+            request_route=f"/v1/chat/completions/{model}",
+        )
+        if exc:
+            verbose_logger.warning(
+                "Moesif governance: blocking request (sync) for user=%s company=%s rule=%s",
+                user_id, company_id, exc.rule_id,
+            )
+            self._sync_send([self._build_blocked_event(data, exc, user_id, company_id)])
+            raise _make_block_exception(exc)
+
+        return data
+
     async def async_pre_call_hook(self, user_api_key_dict, cache, data, call_type):
         self._ensure_flush_task()
         if not self.governance._fetched_once:
@@ -229,11 +254,11 @@ class MoesifLogger(CustomBatchLogger):
         except Exception:
             verbose_logger.exception("Moesif: error sending events (sync)")
 
-    async def _send_blocked_event(self, data: dict, exc: "GovernanceBlockedException", user_id, company_id):
+    def _build_blocked_event(self, data: dict, exc: "GovernanceBlockedException", user_id, company_id) -> dict:
         import datetime
         now = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")
         model = data.get("model", "")
-        event = {
+        return {
             "request": {
                 "time": now,
                 "verb": "POST",
@@ -256,9 +281,14 @@ class MoesifLogger(CustomBatchLogger):
                 "litellm": {"model": model},
             },
         }
+
+    async def _send_blocked_event(self, data: dict, exc: "GovernanceBlockedException", user_id, company_id):
         try:
             client = await self._get_http_client()
-            await client.post(f"{self.moesif_config.moesif_base_url}/v1/events/batch", json=[event])
+            await client.post(
+                f"{self.moesif_config.moesif_base_url}/v1/events/batch",
+                json=[self._build_blocked_event(data, exc, user_id, company_id)],
+            )
         except Exception:
             verbose_logger.exception("Moesif: error sending blocked event")
 

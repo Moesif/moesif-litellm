@@ -150,6 +150,44 @@ class TestAsyncSendBatch:
             assert len(body) == 3
 
 
+class TestSyncPreCallHook:
+    def test_blocks_when_rule_matches(self, logger):
+        import litellm
+        logger.governance._rules = [{
+            "_id": "rule-sync-1",
+            "type": "regex",
+            "block": True,
+            "response": {"status": 403, "headers": {}, "body": {"error": "blocked"}},
+            "regex_config": [{"conditions": [{"path": "request.route", "value": "gemini"}]}],
+        }]
+        logger.governance._fetched_once = True
+        data = {"model": "gemini-flash", "messages": [{"role": "user", "content": "hi"}]}
+
+        with respx.mock:
+            respx.post("https://api.moesif.net/v1/events/batch").mock(return_value=httpx.Response(201))
+            with pytest.raises(litellm.PermissionDeniedError):
+                logger.pre_call_hook(None, None, data, "completion")
+
+    def test_passes_when_no_rules(self, logger):
+        logger.governance._rules = []
+        data = {"model": "gemini-flash", "messages": []}
+        result = logger.pre_call_hook(None, None, data, "completion")
+        assert result is data
+
+    def test_passes_when_rule_does_not_match(self, logger):
+        logger.governance._rules = [{
+            "_id": "rule-sync-2",
+            "type": "regex",
+            "block": True,
+            "response": {"status": 403, "headers": {}, "body": {"error": "blocked"}},
+            "regex_config": [{"conditions": [{"path": "request.route", "value": "openai"}]}],
+        }]
+        logger.governance._fetched_once = True
+        data = {"model": "gemini-flash", "messages": []}
+        result = logger.pre_call_hook(None, None, data, "completion")
+        assert result is data
+
+
 class TestConfig:
     def test_missing_app_id_raises(self):
         import os
