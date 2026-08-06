@@ -43,7 +43,7 @@ def _make_block_exception(exc: "GovernanceBlockedException") -> Exception:
     return litellm.BadRequestError(message=message, llm_provider="moesif", model="", response=mock_response)
 
 
-class MoesifLogger(CustomBatchLogger):
+class MoesifHandler(CustomBatchLogger):
 
     def __init__(self, **config_kwargs):
         self.moesif_config = MoesifConfig(**config_kwargs)

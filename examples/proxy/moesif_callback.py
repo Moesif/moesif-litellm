@@ -1,3 +1,3 @@
-from moesif_litellm import MoesifLogger
+from moesif_litellm import MoesifHandler
 
-moesif_logger = MoesifLogger()
+moesif_logger = MoesifHandler()

@@ -4,7 +4,7 @@ import pytest
 import respx
 import httpx
 from unittest.mock import patch
-from moesif_litellm.callback import MoesifLogger
+from moesif_litellm.callback import MoesifHandler
 
 
 def _make_logger(**kwargs):
@@ -14,7 +14,7 @@ def _make_logger(**kwargs):
         coro.close()  # prevent "coroutine never awaited" warnings in test context
 
     with patch("asyncio.create_task", side_effect=_close_coro):
-        logger = MoesifLogger(**kwargs)
+        logger = MoesifHandler(**kwargs)
     return logger
 
 

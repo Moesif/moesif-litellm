@@ -22,9 +22,9 @@ Call LiteLLM directly in your Python code and attach the logger as a callback.
 
 ```python
 import litellm
-from moesif_litellm import MoesifLogger
+from moesif_litellm import MoesifHandler
 
-litellm.callbacks = [MoesifLogger()]
+litellm.callbacks = [MoesifHandler()]
 
 response = litellm.completion(
     model="gpt-4o",
@@ -43,7 +43,7 @@ export MOESIF_APPLICATION_ID=your-moesif-app-id
 Or pass it directly:
 
 ```python
-litellm.callbacks = [MoesifLogger(application_id="your-moesif-app-id")]
+litellm.callbacks = [MoesifHandler(application_id="your-moesif-app-id")]
 ```
 
 ### User and company identity
@@ -63,7 +63,7 @@ For full control, use the `identify_user` and `identify_company` callbacks. Usef
 
 ```python
 litellm.callbacks = [
-    MoesifLogger(
+    MoesifHandler(
         identify_user=lambda kwargs, payload: current_user.id,
         identify_company=lambda kwargs, payload: current_user.company_id,
     )
@@ -84,9 +84,9 @@ Create `moesif_callback.py` in the same directory as your proxy config:
 
 ```python
 # moesif_callback.py
-from moesif_litellm import MoesifLogger
+from moesif_litellm import MoesifHandler
 
-moesif_logger = MoesifLogger()
+moesif_logger = MoesifHandler()
 ```
 
 ### 2. Create the proxy config
@@ -200,7 +200,7 @@ The plugin resolves `user_id` and `company_id` automatically from multiple sourc
 If your users authenticate with a JWT (e.g. Auth0, Okta), configure which claims to use:
 
 ```python
-MoesifLogger(
+MoesifHandler(
     authorization_user_id_field="sub",      # default
     authorization_company_id_field="org_id",
 )
@@ -212,7 +212,7 @@ The plugin decodes the `Authorization: Bearer <token>` header automatically — 
 
 ## Configuration reference
 
-All options are passed as keyword arguments to `MoesifLogger`:
+All options are passed as keyword arguments to `MoesifHandler`:
 
 | Parameter | Default | Description |
 |---|---|---|
@@ -243,7 +243,7 @@ All options are passed as keyword arguments to `MoesifLogger`:
 ## Masking sensitive data
 
 ```python
-MoesifLogger(
+MoesifHandler(
     request_body_masks=["messages"],         # null out request messages
     response_body_masks=["choices"],         # null out response choices
     request_header_masks=["authorization"],  # strip auth header
@@ -256,7 +256,7 @@ MoesifLogger(
 
 ```python
 # Only log errors, skip successful requests
-MoesifLogger(
+MoesifHandler(
     skip_event=lambda kwargs, event: event["response"]["status"] == 200,
 )
 ```
@@ -267,7 +267,7 @@ MoesifLogger(
 
 ```python
 # Capture 10% of traffic
-MoesifLogger(sample_rate=10)
+MoesifHandler(sample_rate=10)
 ```
 
 Events that pass sampling get a `weight` of `100 / sample_rate` so Moesif can extrapolate totals correctly.
@@ -276,7 +276,7 @@ Events that pass sampling get a `weight` of `100 / sample_rate` so Moesif can ex
 
 ## How it works
 
-`MoesifLogger` extends LiteLLM's `CustomBatchLogger`. On each request it builds a Moesif event from `StandardLoggingPayload` and appends it to an in-memory queue. A background `asyncio` task flushes the queue to `POST /v1/events/batch` every `flush_interval` seconds, or immediately when `batch_size` is reached. The proxied request is never blocked. Failed batches are re-queued automatically.
+`MoesifHandler` extends LiteLLM's `CustomBatchLogger`. On each request it builds a Moesif event from `StandardLoggingPayload` and appends it to an in-memory queue. A background `asyncio` task flushes the queue to `POST /v1/events/batch` every `flush_interval` seconds, or immediately when `batch_size` is reached. The proxied request is never blocked. Failed batches are re-queued automatically.
 
 ### Sync vs async flush behaviour
 

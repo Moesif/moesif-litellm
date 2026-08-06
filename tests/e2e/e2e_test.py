@@ -14,7 +14,7 @@ import os
 import time
 
 import litellm
-from moesif_litellm import MoesifLogger
+from moesif_litellm import MoesifHandler
 
 # ── Validate env vars ──────────────────────────────────────────────────────────
 for var in ("GEMINI_API_KEY", "MOESIF_APPLICATION_ID"):
@@ -22,7 +22,7 @@ for var in ("GEMINI_API_KEY", "MOESIF_APPLICATION_ID"):
         raise SystemExit(f"ERROR: {var} is not set.")
 
 # ── Wire up the logger ─────────────────────────────────────────────────────────
-logger = MoesifLogger(
+logger = MoesifHandler(
     identify_user=lambda kwargs, payload: "e2e-test-user",
     identify_company=lambda kwargs, payload: "e2e-test-company",
     debug=True,

@@ -22,7 +22,7 @@ import uuid
 import httpx
 import litellm
 
-from moesif_litellm import MoesifLogger
+from moesif_litellm import MoesifHandler
 
 # ── Env validation ─────────────────────────────────────────────────────────────
 
@@ -88,7 +88,7 @@ def query_events(user_id: str) -> list:
 
 # ── Send events ────────────────────────────────────────────────────────────────
 
-async def _flush(logger: MoesifLogger):
+async def _flush(logger: MoesifHandler):
     await asyncio.sleep(3)
     async with logger.flush_lock:
         await logger.async_send_batch()
@@ -102,13 +102,13 @@ for scenario in SCENARIOS:
 
     if scenario["use_callbacks"]:
         uid, cid = scenario["user_id"], scenario["company_id"]
-        logger = MoesifLogger(
+        logger = MoesifHandler(
             identify_user=lambda k, p, u=uid: u,
             identify_company=lambda k, p, c=cid: c,
             debug=True,
         )
     else:
-        logger = MoesifLogger(debug=True)
+        logger = MoesifHandler(debug=True)
 
     litellm.callbacks = [logger]
 

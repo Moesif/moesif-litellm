@@ -1,7 +1,7 @@
 import time
 import pytest
 from unittest.mock import patch
-from moesif_litellm.callback import MoesifLogger
+from moesif_litellm.callback import MoesifHandler
 
 
 def _make_logger(**kwargs):
@@ -11,7 +11,7 @@ def _make_logger(**kwargs):
         coro.close()
 
     with patch("asyncio.create_task", side_effect=_close_coro):
-        return MoesifLogger(**kwargs)
+        return MoesifHandler(**kwargs)
 
 
 @pytest.fixture

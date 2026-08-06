@@ -41,7 +41,7 @@ class MoesifConfig:
         if not self.application_id:
             raise ValueError(
                 "Moesif application_id is required. "
-                "Pass it as MoesifLogger(application_id=...) or set MOESIF_APPLICATION_ID."
+                "Pass it as MoesifHandler(application_id=...) or set MOESIF_APPLICATION_ID."
             )
         if not 0 <= self.sample_rate <= 100:
             raise ValueError("sample_rate must be between 0 and 100.")
