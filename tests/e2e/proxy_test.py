@@ -89,3 +89,13 @@ class TestStreamingLogging:
             assert resp.status_code == 200
             lines = [l for l in resp.iter_lines() if l]
         assert lines[-1] == "data: [DONE]"
+
+
+# -- Manual verification needed --
+#
+#   Sampling         — set sample_rate=0 in moesif_callback.py, restart proxy,
+#                      confirm no events appear in Moesif
+#   Governance       — configure a block rule in Moesif, confirm request is blocked
+#                      and event appears with blocked_by field set
+#   Body masking     — configure response_body_masks in moesif_callback.py,
+#                      restart proxy, confirm fields are redacted in Moesif
