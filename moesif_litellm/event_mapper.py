@@ -37,13 +37,9 @@ def build_moesif_event(
     is_error: bool = False,
     effective_sample_rate: Optional[int] = None,
 ) -> Optional[dict]:
-    """
-    Map a LiteLLM callback invocation to a Moesif event dict.
-    Returns None if the event should be dropped (sampling or skip_event hook).
-    """
+    """Map a LiteLLM callback to a Moesif event dict. Returns None if the event should be dropped."""
     payload: dict = kwargs.get("standard_logging_object") or {}
 
-    # ── Sampling ──────────────────────────────────────────────────────────────
     sample_rate = effective_sample_rate if effective_sample_rate is not None else config.sample_rate
     if sample_rate < 100:
         if random.randint(0, 99) >= sample_rate:
@@ -52,7 +48,6 @@ def build_moesif_event(
     else:
         weight = 1
 
-    # ── Request ───────────────────────────────────────────────────────────────
     req_body = _build_request_body(payload, config)
     req_headers = _build_request_headers(payload, config)
 
@@ -68,7 +63,6 @@ def build_moesif_event(
     if ip:
         request_event["ip_address"] = ip
 
-    # ── Response ──────────────────────────────────────────────────────────────
     resp_body = _build_response_body(payload, config, is_error=is_error)
     http_status = _resolve_http_status(payload, is_error=is_error)
 
@@ -80,7 +74,6 @@ def build_moesif_event(
         "transfer_encoding": "json" if resp_body is not None else None,
     }
 
-    # ── Identity ──────────────────────────────────────────────────────────────
     user_id = resolve_user_id(kwargs, payload, config)
     company_id = resolve_company_id(kwargs, payload, config)
 
@@ -99,7 +92,6 @@ def build_moesif_event(
             flush=True,
         )
 
-    # ── Metadata ──────────────────────────────────────────────────────────────
     metadata = {
         "litellm": {
             k: payload.get(k)
@@ -131,7 +123,6 @@ def build_moesif_event(
         "transaction_id": payload.get("litellm_call_id"),
     }
 
-    # ── Hooks ─────────────────────────────────────────────────────────────────
     if config.skip_event:
         try:
             if config.skip_event(kwargs, event):
@@ -149,8 +140,6 @@ def build_moesif_event(
 
     return event
 
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _construct_uri(payload: dict) -> str:
     api_base = (payload.get("api_base") or "").rstrip("/")
@@ -184,7 +173,7 @@ def _build_request_headers(payload: dict, config: MoesifConfig) -> dict:
 
 def _build_response_body(payload: dict, config: MoesifConfig, *, is_error: bool):
     if is_error:
-        # Always capture error details regardless of capture_response_body flag
+        # Always capture error details regardless of capture_response_body setting
         body = {"error": payload.get("error_str")}
         return mask_body(body, config.response_body_masks)
     if not config.capture_response_body:
@@ -211,7 +200,6 @@ def _extract_session_token(kwargs: dict, payload: dict) -> Optional[str]:
 
 
 def _to_float(ts) -> float:
-    """Accept datetime, float, or int timestamps."""
     if isinstance(ts, float):
         return ts
     if isinstance(ts, int):

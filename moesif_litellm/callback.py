@@ -60,8 +60,8 @@ class MoesifLogger(CustomBatchLogger):
             self._flush_task = asyncio.create_task(self.periodic_flush())
             self.governance.start()
         except RuntimeError:
-            # No running event loop (e.g., created at module level in sync scripts).
-            # _ensure_flush_task() will retry on first async event.
+            # No running event loop (created at module level in sync scripts).
+            # _ensure_flush_task() retries on the first async event.
             pass
 
         self.flush_lock = asyncio.Lock()
@@ -127,8 +127,8 @@ class MoesifLogger(CustomBatchLogger):
         return data
 
     async def async_log_stream_event(self, kwargs, response_obj, start_time, end_time):
-        # Intermediate chunks are skipped; async_log_success_event handles the
-        # fully assembled streaming response once all chunks are received.
+        # Intermediate chunks are skipped; async_log_success_event receives the
+        # fully assembled response once streaming completes.
         pass
 
     async def async_log_success_event(self, kwargs, response_obj, start_time, end_time):
@@ -237,7 +237,6 @@ class MoesifLogger(CustomBatchLogger):
             await self.async_send_batch()
 
     def _sync_send(self, batch: list):
-        """Send a batch synchronously — used by sync litellm.completion() calls."""
         try:
             with httpx.Client(
                 timeout=httpx.Timeout(connect=5.0, read=10.0, write=10.0, pool=5.0),

@@ -8,8 +8,6 @@ from litellm._logging import verbose_logger
 
 
 class GovernanceBlockedException(Exception):
-    """Raised when a Moesif governance rule blocks a request."""
-
     def __init__(self, status: int, body, headers: dict, rule_id: str):
         self.status = status
         self.body = body
@@ -32,7 +30,7 @@ class GovernanceRulesManager:
         self._rules_etag: Optional[str] = None
         self._fetched_once: bool = False
 
-        # /v1/config — maps user_id/company_id → [{rules: rule_id, values: {...}}]
+        # /v1/config maps entity_id → [{rules: rule_id, values: {...}}]
         self._user_entity_rules: dict = {}
         self._company_entity_rules: dict = {}
         self._user_sample_rates: dict = {}
@@ -40,8 +38,6 @@ class GovernanceRulesManager:
         self._config_etag: Optional[str] = None
 
         self._refresh_task: Optional[asyncio.Task] = None
-
-    # ── Public API ────────────────────────────────────────────────────────────
 
     @property
     def rules(self) -> List[dict]:
@@ -55,7 +51,7 @@ class GovernanceRulesManager:
                 pass
 
     async def fetch_once(self):
-        """Blocking fetch on first request — ensures rules are loaded before checking."""
+        """Blocking fetch on first async request — ensures rules are loaded before checking."""
         if not self._fetched_once:
             await asyncio.gather(self._fetch_rules(), self._fetch_config())
             self._fetched_once = True
@@ -81,16 +77,12 @@ class GovernanceRulesManager:
         request_verb: str = "POST",
         request_route: str = "",
     ) -> Optional["GovernanceBlockedException"]:
-        """Check whether this request should be blocked by any governance rule.
-
-        Returns a GovernanceBlockedException to raise, or None if not blocked.
-        """
+        """Return a GovernanceBlockedException if any rule blocks this request, else None."""
         if not self._rules:
             return None
 
         rule_index = {r["_id"]: r for r in self._rules if "_id" in r}
 
-        # 1. User rules
         exc = self._check_entity_rules(
             entity_id=user_id,
             entity_rules_map=self._user_entity_rules,
@@ -102,7 +94,6 @@ class GovernanceRulesManager:
         if exc:
             return exc
 
-        # 2. Company rules
         exc = self._check_entity_rules(
             entity_id=company_id,
             entity_rules_map=self._company_entity_rules,
@@ -114,7 +105,7 @@ class GovernanceRulesManager:
         if exc:
             return exc
 
-        # 3. Regex rules (no entity needed)
+        # Regex rules apply regardless of entity identity
         for rule in self._rules:
             if rule.get("type") != "regex" or not rule.get("block"):
                 continue
@@ -122,8 +113,6 @@ class GovernanceRulesManager:
                 return self._make_exception(rule)
 
         return None
-
-    # ── Internal ──────────────────────────────────────────────────────────────
 
     def _check_entity_rules(
         self,
@@ -141,13 +130,11 @@ class GovernanceRulesManager:
             applied_to_unidentified = rule.get("applied_to_unidentified", False)
 
             if entity_id is None:
-                # Only trigger if this rule targets unidentified entities
                 if not applied_to_unidentified:
                     continue
                 if self._regex_conditions_match(rule, request_verb, request_route):
                     return self._make_exception(rule)
             else:
-                # Entity identified — check if this entity is mapped to this rule
                 entity_rule_entries = entity_rules_map.get(entity_id, [])
                 rule_ids_for_entity = {e.get("rules") for e in entity_rule_entries}
                 rule_id = rule.get("_id")
@@ -166,12 +153,12 @@ class GovernanceRulesManager:
     def _regex_conditions_match(self, rule: dict, verb: str, route: str) -> bool:
         regex_configs = rule.get("regex_config") or []
         if not regex_configs:
-            return True  # No conditions = always matches
+            return True  # no conditions = always matches
 
         for config in regex_configs:
             conditions = config.get("conditions") or []
             if all(self._condition_matches(c, verb, route) for c in conditions):
-                return True  # Any config block matching is enough (OR across configs)
+                return True  # OR across config blocks
 
         return False
 
@@ -186,7 +173,7 @@ class GovernanceRulesManager:
         elif path == "request.route":
             target = route
         else:
-            return True  # Unknown path — don't block
+            return True  # unknown path — fail open
 
         try:
             return bool(re.search(pattern, target, re.IGNORECASE))
@@ -204,7 +191,6 @@ class GovernanceRulesManager:
         headers = response.get("headers") or {}
         body = response.get("body", {"error": "Request blocked by governance rule"})
 
-        # Substitute merge tags {{0}}, {{1}} in body if values available
         if entity_entries and isinstance(body, str):
             values = {}
             rule_id = rule.get("_id")
