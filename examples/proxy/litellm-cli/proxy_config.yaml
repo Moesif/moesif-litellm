@@ -1,0 +1,16 @@
+# LiteLLM proxy config — local run example.
+#
+# Setup:
+#   pip install moesif-litellm litellm
+#   export MOESIF_APPLICATION_ID=your-moesif-app-id
+#   export GEMINI_API_KEY=your-gemini-api-key
+#   litellm --config proxy_config.yaml
+
+model_list:
+  - model_name: gemini-flash
+    litellm_params:
+      model: gemini/gemini-3.6-flash
+      api_key: os.environ/GEMINI_API_KEY
+
+litellm_settings:
+  callbacks: ["moesif_callback.moesif_handler"]

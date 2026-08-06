@@ -1,0 +1,12 @@
+services:
+  litellm:
+    build: .
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./proxy_config.yaml:/app/proxy_config.yaml
+      - ./moesif_callback.py:/app/moesif_callback.py
+    environment:
+      MOESIF_APPLICATION_ID: ${MOESIF_APPLICATION_ID}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    command: ["--config", "/app/proxy_config.yaml", "--port", "4000"]

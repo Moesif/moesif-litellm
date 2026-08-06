@@ -86,7 +86,7 @@ Create `moesif_callback.py` in the same directory as your proxy config:
 # moesif_callback.py
 from moesif_litellm import MoesifHandler
 
-moesif_logger = MoesifHandler()
+moesif_handler = MoesifHandler()
 ```
 
 ### 2. Create the proxy config
@@ -100,7 +100,7 @@ model_list:
       api_key: os.environ/OPENAI_API_KEY
 
 litellm_settings:
-  callbacks: ["moesif_callback.moesif_logger"]
+  callbacks: ["moesif_callback.moesif_handler"]
 ```
 
 ### 3. Start the proxy

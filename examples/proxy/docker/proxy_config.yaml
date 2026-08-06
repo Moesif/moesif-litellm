@@ -1,3 +1,5 @@
+# LiteLLM proxy config — mounted into the container via docker-compose volumes.
+
 model_list:
   - model_name: gemini-flash
     litellm_params:
@@ -5,4 +7,4 @@ model_list:
       api_key: os.environ/GEMINI_API_KEY
 
 litellm_settings:
-  callbacks: ["moesif_callback.moesif_logger"]
+  callbacks: ["moesif_callback.moesif_handler"]
