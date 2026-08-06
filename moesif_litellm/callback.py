@@ -126,6 +126,11 @@ class MoesifLogger(CustomBatchLogger):
 
         return data
 
+    async def async_log_stream_event(self, kwargs, response_obj, start_time, end_time):
+        # Intermediate chunks are skipped; async_log_success_event handles the
+        # fully assembled streaming response once all chunks are received.
+        pass
+
     async def async_log_success_event(self, kwargs, response_obj, start_time, end_time):
         self._ensure_flush_task()
         try:
