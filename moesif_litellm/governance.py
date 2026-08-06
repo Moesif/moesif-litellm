@@ -6,6 +6,8 @@ from typing import List, Optional
 import httpx
 from litellm._logging import verbose_logger
 
+from moesif_litellm._endpoints import CONFIG, RULES
+
 
 class GovernanceBlockedException(Exception):
     def __init__(self, status: int, body, headers: dict, rule_id: str):
@@ -226,7 +228,7 @@ class GovernanceRulesManager:
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(connect=5.0, read=10.0, write=10.0, pool=5.0),
             ) as client:
-                response = await client.get(f"{self._base_url}/v1/rules", headers=headers)
+                response = await client.get(f"{self._base_url}{RULES}", headers=headers)
 
             if response.status_code == 304:
                 return
@@ -253,7 +255,7 @@ class GovernanceRulesManager:
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(connect=5.0, read=10.0, write=10.0, pool=5.0),
             ) as client:
-                response = await client.get(f"{self._base_url}/v1/config", headers=headers)
+                response = await client.get(f"{self._base_url}{CONFIG}", headers=headers)
 
             if response.status_code == 304:
                 return

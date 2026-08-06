@@ -2,6 +2,8 @@ import os
 from dataclasses import dataclass, field
 from typing import Callable, List, Optional
 
+from moesif_litellm._endpoints import DEFAULT_BASE_URL
+
 
 @dataclass
 class MoesifConfig:
@@ -31,7 +33,7 @@ class MoesifConfig:
 
     sample_rate: int = 100
 
-    moesif_base_url: str = "https://api.moesif.net"
+    moesif_base_url: str = DEFAULT_BASE_URL
 
     debug: bool = False
 

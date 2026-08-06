@@ -58,7 +58,7 @@ class TestSuccessEvent:
     def test_uri_fallback_when_no_api_base(self, base_kwargs, config):
         base_kwargs["standard_logging_object"]["api_base"] = ""
         event = _build(base_kwargs, config)
-        assert "api.openai.com" in event["request"]["uri"]
+        assert event["request"]["uri"] == "/v1/chat/completions"
 
     def test_embedding_call_type(self, base_kwargs, config):
         base_kwargs["standard_logging_object"]["call_type"] = "embedding"

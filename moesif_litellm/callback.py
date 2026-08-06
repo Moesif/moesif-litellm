@@ -5,6 +5,7 @@ import httpx
 from litellm._logging import verbose_logger
 from litellm.integrations.custom_batch_logger import CustomBatchLogger
 
+from moesif_litellm._endpoints import CHAT_COMPLETIONS, DEFAULT_BASE_URL, EVENTS_BATCH
 from moesif_litellm.config import MoesifConfig
 from moesif_litellm.event_mapper import build_moesif_event
 from moesif_litellm.governance import GovernanceBlockedException, GovernanceRulesManager
@@ -21,7 +22,7 @@ def _make_block_exception(exc: "GovernanceBlockedException") -> Exception:
     message = str(exc)
     status = exc.status
 
-    mock_request = httpx.Request(method="POST", url="https://api.moesif.net")
+    mock_request = httpx.Request(method="POST", url=DEFAULT_BASE_URL)
     mock_response = httpx.Response(status_code=status, request=mock_request)
 
     if status == 401:
@@ -85,7 +86,7 @@ class MoesifHandler(CustomBatchLogger):
             user_id=user_id,
             company_id=company_id,
             request_verb="POST",
-            request_route=f"/v1/chat/completions/{model}",
+            request_route=f"{CHAT_COMPLETIONS}/{model}",
         )
         if exc:
             verbose_logger.warning(
@@ -113,7 +114,7 @@ class MoesifHandler(CustomBatchLogger):
             user_id=user_id,
             company_id=company_id,
             request_verb="POST",
-            request_route=f"/v1/chat/completions/{model}",
+            request_route=f"{CHAT_COMPLETIONS}/{model}",
         )
         if exc:
             verbose_logger.warning(
@@ -205,7 +206,7 @@ class MoesifHandler(CustomBatchLogger):
         try:
             client = await self._get_http_client()
             response = await client.post(
-                f"{self.moesif_config.moesif_base_url}/v1/events/batch",
+                f"{self.moesif_config.moesif_base_url}{EVENTS_BATCH}",
                 json=batch,
             )
             if response.status_code != 201:
@@ -245,7 +246,7 @@ class MoesifHandler(CustomBatchLogger):
                 },
             ) as client:
                 response = client.post(
-                    f"{self.moesif_config.moesif_base_url}/v1/events/batch",
+                    f"{self.moesif_config.moesif_base_url}{EVENTS_BATCH}",
                     json=batch,
                 )
                 if response.status_code != 201:
@@ -264,7 +265,7 @@ class MoesifHandler(CustomBatchLogger):
             "request": {
                 "time": now,
                 "verb": "POST",
-                "uri": f"{self.moesif_config.moesif_base_url}/v1/chat/completions",
+                "uri": f"{self.moesif_config.moesif_base_url}{CHAT_COMPLETIONS}",
                 "headers": {"content-type": "application/json"},
                 "body": {"model": model, "messages": data.get("messages", [])} if self.moesif_config.capture_request_body else None,
             },
@@ -288,7 +289,7 @@ class MoesifHandler(CustomBatchLogger):
         try:
             client = await self._get_http_client()
             await client.post(
-                f"{self.moesif_config.moesif_base_url}/v1/events/batch",
+                f"{self.moesif_config.moesif_base_url}{EVENTS_BATCH}",
                 json=[self._build_blocked_event(data, exc, user_id, company_id)],
             )
         except Exception:

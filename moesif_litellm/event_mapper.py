@@ -2,6 +2,7 @@ import datetime
 import random
 from typing import Optional
 
+from moesif_litellm._endpoints import CALL_TYPE_PATH_MAP, CHAT_COMPLETIONS
 from moesif_litellm.config import MoesifConfig
 from moesif_litellm.user_resolver import resolve_company_id, resolve_user_id
 from moesif_litellm.utils import (
@@ -10,21 +11,6 @@ from moesif_litellm.utils import (
     mask_body,
     truncate_body,
 )
-
-_CALL_TYPE_PATH_MAP = {
-    "completion": "/v1/chat/completions",
-    "acompletion": "/v1/chat/completions",
-    "embedding": "/v1/embeddings",
-    "aembedding": "/v1/embeddings",
-    "text_completion": "/v1/completions",
-    "atext_completion": "/v1/completions",
-    "image_generation": "/v1/images/generations",
-    "aimage_generation": "/v1/images/generations",
-    "transcription": "/v1/audio/transcriptions",
-    "atranscription": "/v1/audio/transcriptions",
-    "speech": "/v1/audio/speech",
-    "aspeech": "/v1/audio/speech",
-}
 
 
 def build_moesif_event(
@@ -144,8 +130,8 @@ def build_moesif_event(
 def _construct_uri(payload: dict) -> str:
     api_base = (payload.get("api_base") or "").rstrip("/")
     call_type = payload.get("call_type") or "completion"
-    path = _CALL_TYPE_PATH_MAP.get(call_type, "/v1/chat/completions")
-    return f"{api_base}{path}" if api_base else f"https://api.openai.com{path}"
+    path = CALL_TYPE_PATH_MAP.get(call_type, CHAT_COMPLETIONS)
+    return f"{api_base}{path}" if api_base else path
 
 
 def _build_request_body(payload: dict, config: MoesifConfig):
