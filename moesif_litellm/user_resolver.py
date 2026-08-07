@@ -69,7 +69,7 @@ def resolve_company_id(kwargs: dict, payload: dict, config: MoesifConfig) -> Opt
     if val:
         return str(val)
 
-    val = (kwargs.get("litellm_params") or {}).get("metadata", {}).get("company_id")
+    val = ((kwargs.get("litellm_params") or {}).get("metadata") or {}).get("company_id")
     if val:
         return str(val)
 

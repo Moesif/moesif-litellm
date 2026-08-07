@@ -12,6 +12,7 @@ Run: pytest tests/e2e/sdk_test.py -v
 """
 
 import asyncio
+import datetime
 import os
 import time
 import uuid
@@ -22,8 +23,9 @@ import pytest
 
 from moesif_litellm import MoesifHandler
 
-MGMT_URL = "https://api.moesif.com/v1"
+MGMT_URL = "https://api.moesif.com"
 MODEL = "gemini/gemini-3.6-flash"
+EMBEDDING_MODEL = "gemini/gemini-embedding-001"
 INGESTION_WAIT = 15
 
 
@@ -35,9 +37,18 @@ def _flush_sync(logger):
     asyncio.run(_do())
 
 
+def _reset_litellm_callbacks(logger):
+    # LiteLLM deduplicates CustomBatchLogger by class — remove stale instances before registering a new one
+    from moesif_litellm import MoesifHandler
+    for attr in ("success_callback", "_async_success_callback", "failure_callback", "_async_failure_callback"):
+        old = getattr(litellm, attr, [])
+        setattr(litellm, attr, [cb for cb in old if not isinstance(cb, MoesifHandler)])
+    litellm.callbacks = [logger]
+
+
 def _call(logger, user=None, company=None, model=MODEL, stream=False):
     # make a real LiteLLM call and flush the event to Moesif
-    litellm.callbacks = [logger]
+    _reset_litellm_callbacks(logger)
     try:
         resp = litellm.completion(
             model=model,
@@ -57,11 +68,14 @@ def _call(logger, user=None, company=None, model=MODEL, stream=False):
 
 def _query(mgmt_key, user_id):
     # fetch latest event for user_id from Moesif Management API
+    from_dt = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S")
+    to_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%S")
     with httpx.Client(timeout=30.0) as client:
         resp = client.post(
-            f"{MGMT_URL}/search/~/events/search",
+            f"{MGMT_URL}/v1/search/~/search/events",
+            params={"from": from_dt, "to": to_dt},
             headers={"Authorization": f"Bearer {mgmt_key}", "Content-Type": "application/json"},
-            json={"filter": {"bool": {"must": [{"term": {"user_id.raw": user_id}}]}}, "size": 5},
+            json={"query": {"term": {"user_id.raw": user_id}}, "size": 5},
         )
         resp.raise_for_status()
         hits = resp.json().get("hits", {}).get("hits", [])
@@ -177,6 +191,47 @@ class TestStreamingEventLogging:
         # user_id must be captured correctly from streaming call
         e = events["streaming"]["event"]
         assert e["user_id"] == events["streaming"]["user_id"]
+
+
+@pytest.fixture(scope="module")
+def embedding_event():
+    # Run: pytest tests/e2e/sdk_test.py::TestEmbeddingEventLogging -v
+    for var in ("GEMINI_API_KEY", "MOESIF_APPLICATION_ID", "MOESIF_MANAGEMENT_API_KEY"):
+        if not os.environ.get(var):
+            pytest.skip(f"{var} is not set")
+
+    mgmt_key = os.environ["MOESIF_MANAGEMENT_API_KEY"]
+    user_id = f"sdk-embed-{str(uuid.uuid4())[:8]}"
+
+    h = MoesifHandler(identify_user=lambda k, p: user_id)
+    _reset_litellm_callbacks(h)
+    try:
+        litellm.embedding(model=EMBEDDING_MODEL, input=["hello world"])
+    except Exception:
+        pass
+    finally:
+        _flush_sync(h)
+
+    time.sleep(INGESTION_WAIT)
+    return {"user_id": user_id, "event": _query(mgmt_key, user_id)}
+
+
+class TestEmbeddingEventLogging:
+    def test_embedding_event_landed(self, embedding_event):
+        # embedding call must produce a logged event in Moesif
+        assert embedding_event["event"] is not None
+
+    def test_embedding_uri_is_litellmsdk(self, embedding_event):
+        # SDK mode embedding must use litellmsdk/embedding URI (Moesif normalises with leading slash)
+        assert embedding_event["event"]["request"]["uri"].endswith("litellmsdk/embedding")
+
+    def test_embedding_user_id_correct(self, embedding_event):
+        # user= kwarg must resolve to user_id in the embedding event
+        assert embedding_event["event"]["user_id"] == embedding_event["user_id"]
+
+    def test_embedding_status_200(self, embedding_event):
+        # successful embedding call must log status 200
+        assert embedding_event["event"]["response"]["status"] == 200
 
 
 # -- Manual verification needed --

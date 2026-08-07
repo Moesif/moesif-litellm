@@ -238,7 +238,7 @@ class MoesifHandler(CustomBatchLogger):
     def _sync_send(self, batch: list):
         try:
             with httpx.Client(
-                timeout=httpx.Timeout(connect=5.0, read=10.0, write=10.0, pool=5.0),
+                timeout=httpx.Timeout(connect=5.0, read=30.0, write=10.0, pool=5.0),
                 headers={
                     "X-Moesif-Application-Id": self.moesif_config.application_id,
                     "Content-Type": "application/json",

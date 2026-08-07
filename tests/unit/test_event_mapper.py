@@ -17,7 +17,7 @@ class TestSuccessEvent:
         event = _build(base_kwargs, config)
         req = event["request"]
         assert req["verb"] == "POST"
-        assert req["uri"] == "https://api.openai.com/v1/chat/completions"
+        assert req["uri"] == "litellmsdk/completion"
         assert req["headers"]["content-type"] == "application/json"
         assert req["body"]["model"] == "gpt-4o"
         assert req["body"]["messages"] == [{"role": "user", "content": "Hello"}]
@@ -50,20 +50,30 @@ class TestSuccessEvent:
         assert meta["response_cost"] == 0.0002
         assert meta["total_tokens"] == 20
 
-    def test_uri_uses_api_base(self, base_kwargs, config):
+    def test_uri_sdk_mode(self, base_kwargs, config):
+        # SDK mode — no user_api_key_request_route, uri uses litellmsdk prefix
+        event = _build(base_kwargs, config)
+        assert event["request"]["uri"] == "litellmsdk/completion"
+
+    def test_uri_proxy_mode(self, base_kwargs, config):
+        # proxy mode — user_api_key_request_route present, use it with api_base
+        base_kwargs["standard_logging_object"]["metadata"]["user_api_key_request_route"] = "/v1/chat/completions"
         base_kwargs["standard_logging_object"]["api_base"] = "https://my-proxy.example.com"
         event = _build(base_kwargs, config)
         assert event["request"]["uri"] == "https://my-proxy.example.com/v1/chat/completions"
 
-    def test_uri_fallback_when_no_api_base(self, base_kwargs, config):
+    def test_uri_proxy_mode_no_api_base(self, base_kwargs, config):
+        # proxy mode — no api_base, just the route path
+        base_kwargs["standard_logging_object"]["metadata"]["user_api_key_request_route"] = "/v1/chat/completions"
         base_kwargs["standard_logging_object"]["api_base"] = ""
         event = _build(base_kwargs, config)
         assert event["request"]["uri"] == "/v1/chat/completions"
 
-    def test_embedding_call_type(self, base_kwargs, config):
+    def test_uri_sdk_embedding_call_type(self, base_kwargs, config):
+        # SDK mode embedding call uses litellmsdk/embedding
         base_kwargs["standard_logging_object"]["call_type"] = "embedding"
         event = _build(base_kwargs, config)
-        assert event["request"]["uri"].endswith("/v1/embeddings")
+        assert event["request"]["uri"] == "litellmsdk/embedding"
 
 
 class TestFailureEvent:

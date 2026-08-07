@@ -74,6 +74,8 @@ MoesifHandler(
 )
 ```
 
+> **Note:** In SDK mode there is no HTTP request, so Moesif logs the request URI as `litellmsdk/{call_type}` (e.g. `litellmsdk/completion`, `litellmsdk/embedding`). In proxy mode the actual request path (e.g. `/v1/chat/completions`) is used.
+
 See full example: [`examples/sdk/basic_usage.py`](examples/sdk/basic_usage.py)
 
 ---

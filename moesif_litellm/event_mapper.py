@@ -2,7 +2,7 @@ import datetime
 import random
 from typing import Optional
 
-from moesif_litellm._endpoints import CALL_TYPE_PATH_MAP, CHAT_COMPLETIONS
+from moesif_litellm._endpoints import SDK_PATH_PREFIX
 from moesif_litellm.config import MoesifConfig
 from moesif_litellm.user_resolver import resolve_company_id, resolve_user_id
 from moesif_litellm.utils import (
@@ -130,8 +130,14 @@ def build_moesif_event(
 def _construct_uri(payload: dict) -> str:
     api_base = (payload.get("api_base") or "").rstrip("/")
     call_type = payload.get("call_type") or "completion"
-    path = CALL_TYPE_PATH_MAP.get(call_type, CHAT_COMPLETIONS)
-    return f"{api_base}{path}" if api_base else path
+
+    # proxy mode — use the actual incoming request path
+    proxy_route = (payload.get("metadata") or {}).get("user_api_key_request_route")
+    if proxy_route:
+        return f"{api_base}{proxy_route}" if api_base else proxy_route
+
+    # SDK mode — no real HTTP path, use litellmsdk/{call_type}
+    return f"{SDK_PATH_PREFIX}/{call_type}"
 
 
 def _build_request_body(payload: dict, config: MoesifConfig):
