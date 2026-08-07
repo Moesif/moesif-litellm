@@ -147,9 +147,11 @@ class MoesifHandler(CustomBatchLogger):
             verbose_logger.exception("Moesif: error building success event")
             return
         if event is not None:
-            self.log_queue.append(event)
-            if len(self.log_queue) >= self.batch_size:
-                await self.flush_queue()
+            async with self.flush_lock:
+                self.log_queue.append(event)
+                should_flush = len(self.log_queue) >= self.batch_size
+            if should_flush:
+                await self.async_send_batch()
 
     async def async_log_failure_event(self, kwargs, response_obj, start_time, end_time):
         self._ensure_flush_task()
@@ -168,9 +170,11 @@ class MoesifHandler(CustomBatchLogger):
             verbose_logger.exception("Moesif: error building failure event")
             return
         if event is not None:
-            self.log_queue.append(event)
-            if len(self.log_queue) >= self.batch_size:
-                await self.flush_queue()
+            async with self.flush_lock:
+                self.log_queue.append(event)
+                should_flush = len(self.log_queue) >= self.batch_size
+            if should_flush:
+                await self.async_send_batch()
 
     def log_success_event(self, kwargs, response_obj, start_time, end_time):
         try:
@@ -197,11 +201,11 @@ class MoesifHandler(CustomBatchLogger):
             self._sync_send([event])
 
     async def async_send_batch(self):
-        if not self.log_queue:
-            return
-
-        batch = self.log_queue[:]
-        self.log_queue = []
+        async with self.flush_lock:
+            if not self.log_queue:
+                return
+            batch = self.log_queue[:]
+            self.log_queue = []
 
         try:
             client = await self._get_http_client()
@@ -210,13 +214,15 @@ class MoesifHandler(CustomBatchLogger):
                 json=batch,
             )
             if response.status_code != 201:
-                self.log_queue = batch + self.log_queue
+                async with self.flush_lock:
+                    self.log_queue = batch + self.log_queue
                 verbose_logger.warning(
                     "Moesif: unexpected HTTP %s sending %d events; re-queued",
                     response.status_code, len(batch),
                 )
         except Exception:
-            self.log_queue = batch + self.log_queue
+            async with self.flush_lock:
+                self.log_queue = batch + self.log_queue
             raise
 
     async def _get_http_client(self) -> httpx.AsyncClient:
@@ -232,8 +238,7 @@ class MoesifHandler(CustomBatchLogger):
         return self._http_client
 
     async def _send_batch_now(self):
-        async with self.flush_lock:
-            await self.async_send_batch()
+        await self.async_send_batch()
 
     def _sync_send(self, batch: list):
         try:

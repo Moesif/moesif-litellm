@@ -70,12 +70,12 @@ class TestBatchFlushTrigger:
         async def fake_flush():
             flush_called.append(True)
 
-        logger.flush_queue = fake_flush
+        logger.async_send_batch = fake_flush
 
         for _ in range(3):
             await logger.async_log_success_event(kwargs_success, None, time.time(), time.time())
 
-        assert flush_called, "flush_queue should have been called when batch_size reached"
+        assert flush_called, "async_send_batch should have been called when batch_size reached"
 
 
 class TestAsyncSendBatch:
