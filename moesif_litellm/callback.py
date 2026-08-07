@@ -1,9 +1,12 @@
 import asyncio
+import logging
 from typing import Optional
 
 import httpx
 from litellm._logging import verbose_logger
 from litellm.integrations.custom_batch_logger import CustomBatchLogger
+
+logger = logging.getLogger(__name__)
 
 from moesif_litellm._endpoints import CHAT_COMPLETIONS, DEFAULT_BASE_URL, EVENTS_BATCH
 from moesif_litellm.config import MoesifConfig
@@ -144,7 +147,7 @@ class MoesifHandler(CustomBatchLogger):
                 self.moesif_config, is_error=False, effective_sample_rate=sample_rate,
             )
         except Exception:
-            verbose_logger.exception("Moesif: error building success event")
+            logger.warning("Moesif: error building success event", exc_info=True)
             return
         if event is not None:
             async with self.flush_lock:
@@ -167,7 +170,7 @@ class MoesifHandler(CustomBatchLogger):
                 self.moesif_config, is_error=True, effective_sample_rate=sample_rate,
             )
         except Exception:
-            verbose_logger.exception("Moesif: error building failure event")
+            logger.warning("Moesif: error building failure event", exc_info=True)
             return
         if event is not None:
             async with self.flush_lock:
@@ -183,7 +186,7 @@ class MoesifHandler(CustomBatchLogger):
                 self.moesif_config, is_error=False,
             )
         except Exception:
-            verbose_logger.exception("Moesif: error building success event (sync)")
+            logger.warning("Moesif: error building success event (sync)", exc_info=True)
             return
         if event is not None:
             self._sync_send([event])
@@ -195,7 +198,7 @@ class MoesifHandler(CustomBatchLogger):
                 self.moesif_config, is_error=True,
             )
         except Exception:
-            verbose_logger.exception("Moesif: error building failure event (sync)")
+            logger.warning("Moesif: error building failure event (sync)", exc_info=True)
             return
         if event is not None:
             self._sync_send([event])
